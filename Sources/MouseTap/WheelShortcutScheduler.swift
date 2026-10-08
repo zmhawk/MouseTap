@@ -19,6 +19,11 @@ struct WheelShortcutBuffer {
     private(set) var pending: WheelShortcutRequest?
     private var nextAllowedAt: TimeInterval = 0
 
+    init(minimumInterval: TimeInterval, maximumAge: TimeInterval) {
+        self.minimumInterval = minimumInterval
+        self.maximumAge = maximumAge
+    }
+
     mutating func offer(_ request: WheelShortcutRequest) {
         // Replace rather than append, including when the direction changes.
         pending = request
