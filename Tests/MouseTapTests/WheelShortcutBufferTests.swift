@@ -93,4 +93,20 @@ final class WheelShortcutBufferTests: XCTestCase {
         queue.sync {}
     }
 
+    func testRepeatingMouseButtonsDoNotBuildUpShortcutQueue() throws {
+        let queue = DispatchQueue(label: "MouseTap.Tests.ButtonBurst")
+        let sent = expectation(description: "One button shortcut")
+        sent.assertForOverFulfill = true
+        let scheduler = WheelShortcutScheduler(queue: queue) { request in
+            XCTAssertEqual(request.inputID, "button.2")
+            sent.fulfill()
+        }
+        let shortcut = try request(at: 0).shortcut
+        queue.suspend()
+        for _ in 0..<10_000 { scheduler.submit(inputID: "button.2", shortcut: shortcut) }
+        queue.resume()
+        wait(for: [sent], timeout: 1)
+        queue.sync {}
+    }
+
 }

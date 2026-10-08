@@ -72,9 +72,15 @@ macOS treats the new bundle ID as a new app: grant MouseTap Input Monitoring and
 
 ## Continuous integration
 
-GitHub Actions tests and builds on Apple Silicon and Intel macOS runners for pushes to `main`, pull requests, and manual runs. Each successful job uploads a zipped, ad-hoc-signed `MouseTap.app` for its architecture. These CI builds are not notarized; public Developer ID signing/notarization is a separate release setup. CI does not automatically publish a GitHub Release.
+GitHub Actions tests and builds on Apple Silicon and Intel macOS runners for pushes to `main`, pull requests, manual runs, and version tags. Each successful job uploads a zipped, ad-hoc-signed `MouseTap.app` for its architecture. These builds are not notarized; Developer ID signing/notarization is a separate setup.
+
+To publish a release, tag the desired commit with `vMAJOR.MINOR.PATCH` (for example, `v1.0.0`) and push that tag to `origin`. Both architectures must pass tests and build successfully before Actions publishes a GitHub Release with generated release notes and `MouseTap-arm64.zip` / `MouseTap-x86_64.zip`. The tag version is embedded in the app. Other tag formats fail validation; branch pushes, pull requests, and manual runs only produce CI artifacts.
 
 Run the checks locally with `swift test` and `./scripts/build-app.sh`. The app supports macOS 13 and later.
+
+For local CI-signature checks, use `CODESIGN_IDENTITY=- APP_BUNDLE_PATH=/tmp/MouseTap-CI.app ./scripts/build-app.sh` so the ad-hoc build does not replace the locally authorized development-signed app. Changing signing identity may require removing and re-adding MouseTap in macOS privacy settings.
+
+The event tap runs on a dedicated thread. If macOS disables it, MouseTap pauses the service instead of automatically re-enabling the tap; quit and reopen the app to resume. Ordinary monitoring does not subscribe to keyboard events; keyboard capture is enabled when recording a shortcut. Repeated bound mouse buttons and wheels share a bounded shortcut scheduler (180 ms minimum interval, one pending event, 200 ms expiry).
 
 ## License
 

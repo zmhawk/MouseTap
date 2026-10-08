@@ -80,7 +80,6 @@ struct ShortcutBinding: Codable, Hashable, Sendable {
     @discardableResult
     func post() -> Bool {
         guard CGPreflightPostEventAccess() else {
-            _ = CGRequestPostEventAccess()
             return false
         }
 

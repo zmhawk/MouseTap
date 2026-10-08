@@ -2,9 +2,14 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_BUNDLE="$PROJECT_ROOT/dist/MouseTap.app"
+APP_BUNDLE="${APP_BUNDLE_PATH:-$PROJECT_ROOT/dist/MouseTap.app}"
 APP_BUNDLE_ID="com.zmhawk.mousetap"
 APP_EXECUTABLE="MouseTap"
+APP_VERSION="${APP_VERSION:-1.0.0}"
+if [[ ! "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "APP_VERSION must use MAJOR.MINOR.PATCH" >&2
+  exit 1
+fi
 
 swift build \
   --package-path "$PROJECT_ROOT" \
@@ -41,9 +46,9 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>$APP_VERSION</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>$APP_VERSION</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.utilities</string>
     <key>LSMinimumSystemVersion</key>

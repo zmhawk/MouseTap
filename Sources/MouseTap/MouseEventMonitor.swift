@@ -1,9 +1,11 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import os
 
 final class MouseEventMonitor: @unchecked Sendable {
     static let shared = MouseEventMonitor()
+    private let logger = Logger(subsystem: "com.zmhawk.mousetap", category: "EventMonitor")
 
     var onInputDetected: ((MouseInput) -> Void)?
     var onStatusChanged: ((String) -> Void)?
@@ -12,7 +14,7 @@ final class MouseEventMonitor: @unchecked Sendable {
     private lazy var wheelShortcuts = WheelShortcutScheduler(queue: shortcutQueue) { [weak self] request in
         guard let self else { return }
         self.stateLock.lock()
-        let valid = !self.learningMode && !self.shortcutCaptureActive
+        let valid = self.serviceActive && !self.learningMode && !self.shortcutCaptureActive
             && self.bindings[request.inputID] == request.shortcut
         self.stateLock.unlock()
         if valid { self.postShortcut(request.shortcut) }
@@ -26,11 +28,25 @@ final class MouseEventMonitor: @unchecked Sendable {
     private var shortcutCaptureCallback: ((ShortcutBinding?) -> Void)?
     private var swallowedShortcutKeyUps = Set<UInt16>()
     private var tap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var eventRunLoop: EventTapRunLoop?
+    private var serviceActive = false
+    private var postAccessReady = false
+    private var inputNotificationPending = false
+    private var latestDetectedInput: MouseInput?
 
-    func start() {
+    private init() {
+        // Initialize once before callbacks and the main thread can access it.
+        _ = wheelShortcuts
+    }
+
+    func start(captureKeyboard: Bool = false) {
         guard tap == nil else {
-            if !postEventAccessIsReadyForBindings() {
+            stateLock.lock()
+            let active = serviceActive
+            stateLock.unlock()
+            if !active {
+                reportStatus("鼠标服务已暂停；请退出并重新打开 MouseTap")
+            } else if !postEventAccessIsReadyForBindings() {
                 reportStatus("正在监听；请允许 MouseTap 合成键盘事件，绑定才能触发")
             } else {
                 reportStatus("正在监听鼠标中键、额外按键和横向拨轮")
@@ -46,9 +62,8 @@ final class MouseEventMonitor: @unchecked Sendable {
 
         let canSynthesizeForBindings = postEventAccessIsReadyForBindings()
 
-        let eventTypes: [CGEventType] = [
-            .otherMouseDown, .otherMouseUp, .scrollWheel, .keyDown, .keyUp, .flagsChanged,
-        ]
+        var eventTypes: [CGEventType] = [.otherMouseDown, .otherMouseUp, .scrollWheel]
+        if captureKeyboard { eventTypes += [.keyDown, .keyUp] }
         let eventMask = eventTypes.reduce(CGEventMask(0)) { mask, type in
             mask | (CGEventMask(1) << type.rawValue)
         }
@@ -71,9 +86,12 @@ final class MouseEventMonitor: @unchecked Sendable {
             return
         }
 
+        stateLock.lock()
         tap = eventTap
-        runLoopSource = source
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        serviceActive = true
+        postAccessReady = canSynthesizeForBindings
+        stateLock.unlock()
+        eventRunLoop = EventTapRunLoop(source: source)
         CGEvent.tapEnable(tap: eventTap, enable: true)
         reportStatus(
             canSynthesizeForBindings
@@ -90,15 +108,19 @@ final class MouseEventMonitor: @unchecked Sendable {
         shortcutCaptureActive = false
         stateLock.unlock()
 
-        if let runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
-        }
-        if let tap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-            CFMachPortInvalidate(tap)
-        }
-        runLoopSource = nil
+        stateLock.lock()
+        serviceActive = false
+        let oldTap = tap
         tap = nil
+        swallowedButtons.removeAll()
+        swallowedShortcutKeyUps.removeAll()
+        stateLock.unlock()
+        if let oldTap {
+            CGEvent.tapEnable(tap: oldTap, enable: false)
+            CFMachPortInvalidate(oldTap)
+        }
+        eventRunLoop?.stop()
+        eventRunLoop = nil
 
         if let captureCallback {
             DispatchQueue.main.async { captureCallback(nil) }
@@ -106,9 +128,11 @@ final class MouseEventMonitor: @unchecked Sendable {
     }
 
     func setBindings(_ bindings: [String: ShortcutBinding]) {
+        let allowed = CGPreflightPostEventAccess()
         wheelShortcuts.cancel()
         stateLock.lock()
         self.bindings = bindings
+        postAccessReady = allowed
         stateLock.unlock()
     }
 
@@ -142,7 +166,7 @@ final class MouseEventMonitor: @unchecked Sendable {
 
         // Recreate the tap after permission changes so its keyboard event mask is refreshed.
         stop()
-        start()
+        start(captureKeyboard: true)
 
         stateLock.lock()
         shortcutCaptureCallback = completion
@@ -164,9 +188,22 @@ final class MouseEventMonitor: @unchecked Sendable {
 
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            logger.error("Event tap interrupted (type \(type.rawValue)); service paused to protect system input")
+            // Leave the tap disabled: automatic retry can repeatedly stall input.
+            stateLock.lock()
+            serviceActive = false
+            swallowedButtons.removeAll()
+            swallowedShortcutKeyUps.removeAll()
+            stateLock.unlock()
+            wheelShortcuts.cancel()
+            reportStatus("鼠标服务已因监听中断暂停；系统输入已放行，请重新打开应用")
             return Unmanaged.passUnretained(event)
         }
+
+        stateLock.lock()
+        let active = serviceActive
+        stateLock.unlock()
+        guard active else { return Unmanaged.passUnretained(event) }
 
         // Synthetic events must pass through even if recording starts while
         // a queued shortcut is finishing. Seeing them here only confirms delivery
@@ -236,14 +273,11 @@ final class MouseEventMonitor: @unchecked Sendable {
         stateLock.lock()
         let learning = learningMode || shortcutCaptureActive
         let shortcut = bindings[input.id]
+        let canPostShortcut = postAccessReady
         stateLock.unlock()
 
-        let canPostShortcut = learning || shortcut == nil || CGPreflightPostEventAccess()
-        if !learning, shortcut != nil, !canPostShortcut {
-            DispatchQueue.main.async { [weak self] in
-                self?.requestPostEventAccess()
-            }
-        }
+        // Permission checks may involve system IPC; never do them in a tap callback.
+        // The cached value gates swallowing; the worker rechecks before posting.
 
         if !learning, shortcut != nil, canPostShortcut, input.id.hasPrefix("button.") {
             stateLock.lock()
@@ -251,18 +285,13 @@ final class MouseEventMonitor: @unchecked Sendable {
             stateLock.unlock()
         }
 
-        DispatchQueue.main.async { [weak self] in
-            self?.onInputDetected?(input)
-        }
+        notifyInput(input)
 
         guard !learning, let shortcut, canPostShortcut else {
             return Unmanaged.passUnretained(event)
         }
-        if input.id.hasPrefix("scroll.") {
-            wheelShortcuts.submit(inputID: input.id, shortcut: shortcut)
-        } else {
-            shortcutQueue.async { [weak self] in self?.postShortcut(shortcut) }
-        }
+        // Repeated button presses must be bounded too, not just wheel events.
+        wheelShortcuts.submit(inputID: input.id, shortcut: shortcut)
         return nil
     }
 
@@ -278,6 +307,10 @@ final class MouseEventMonitor: @unchecked Sendable {
     private func handleShortcutKeyDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {
         let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
         stateLock.lock()
+        if swallowedShortcutKeyUps.contains(keyCode) {
+            stateLock.unlock()
+            return nil
+        }
         guard shortcutCaptureActive else {
             stateLock.unlock()
             return Unmanaged.passUnretained(event)
@@ -303,6 +336,24 @@ final class MouseEventMonitor: @unchecked Sendable {
         return nil
     }
 
+    private func notifyInput(_ input: MouseInput) {
+        stateLock.lock()
+        latestDetectedInput = input
+        let shouldSchedule = !inputNotificationPending
+        inputNotificationPending = true
+        stateLock.unlock()
+        guard shouldSchedule else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.stateLock.lock()
+            let latest = self.latestDetectedInput
+            self.latestDetectedInput = nil
+            self.inputNotificationPending = false
+            self.stateLock.unlock()
+            if let latest { self.onInputDetected?(latest) }
+        }
+    }
+
     private func reportStatus(_ message: String) {
         DispatchQueue.main.async { [weak self] in
             self?.onStatusChanged?(message)
@@ -315,18 +366,15 @@ final class MouseEventMonitor: @unchecked Sendable {
         stateLock.unlock()
 
         guard hasBindings else { return true }
-        guard CGPreflightPostEventAccess() else {
-            _ = CGRequestPostEventAccess()
-            return false
-        }
-        return true
+        let allowed = CGPreflightPostEventAccess()
+        stateLock.lock()
+        postAccessReady = allowed
+        stateLock.unlock()
+        if !allowed { _ = CGRequestPostEventAccess() }
+        return allowed
     }
 
-    private func requestPostEventAccess() {
-        guard !CGPreflightPostEventAccess() else { return }
-        _ = CGRequestPostEventAccess()
-        reportStatus("正在监听；请允许 MouseTap 合成键盘事件，绑定才能触发")
-    }
+
 }
 
 private func mouseEventTapCallback(
