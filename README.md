@@ -18,6 +18,8 @@ Only inputs with a saved binding are intercepted. Unbound inputs pass through, a
 
 左上角的 x 是关闭窗口，但不关闭服务。但是首次授权后需要重新启动 app 才能生效，要点“退出并关闭鼠标服务“彻底关闭后再打开。
 
+先把核心功能分享出来，细节再慢慢优化吧。
+
 ## Build and run
 
 ```sh
@@ -42,3 +44,7 @@ The build script packages the icon from `Assets/MouseKit.png`. `--background` st
 ## Scroll direction
 
 **反转上下滚动** and **反转左右滚动** reverse each wheel axis relative to the macOS setting. Changes apply immediately and persist across background launches. Existing horizontal-wheel shortcut bindings take priority and retain their original mapping. Phased trackpad gestures and momentum pass through unchanged.
+
+## Horizontal-wheel repeat limiting
+
+Bound horizontal-wheel shortcuts start at least 180 ms apart. Repeated events replace a single pending request, so long presses cannot create an unbounded shortcut queue. Changing direction replaces the pending direction. Requests older than 200 ms are dropped; entering capture/learning, stopping the monitor, or changing bindings clears pending wheel requests. An in-progress shortcut always finishes its key releases. Mouse-button clicks and unbound scrolling keep their normal handling.

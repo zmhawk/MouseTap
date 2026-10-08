@@ -9,6 +9,14 @@ final class MouseEventMonitor: @unchecked Sendable {
     var onStatusChanged: ((String) -> Void)?
 
     private let shortcutQueue = DispatchQueue(label: "com.yujianbo.mousekit.shortcuts", qos: .userInteractive)
+    private lazy var wheelShortcuts = WheelShortcutScheduler(queue: shortcutQueue) { [weak self] request in
+        guard let self else { return }
+        self.stateLock.lock()
+        let valid = !self.learningMode && !self.shortcutCaptureActive
+            && self.bindings[request.inputID] == request.shortcut
+        self.stateLock.unlock()
+        if valid { self.postShortcut(request.shortcut) }
+    }
     private let stateLock = NSLock()
     private var bindings: [String: ShortcutBinding] = [:]
     private var scrollSettings = ScrollSettings.load()
@@ -75,6 +83,7 @@ final class MouseEventMonitor: @unchecked Sendable {
     }
 
     func stop() {
+        wheelShortcuts.cancel()
         stateLock.lock()
         let captureCallback = shortcutCaptureCallback
         shortcutCaptureCallback = nil
@@ -97,6 +106,7 @@ final class MouseEventMonitor: @unchecked Sendable {
     }
 
     func setBindings(_ bindings: [String: ShortcutBinding]) {
+        wheelShortcuts.cancel()
         stateLock.lock()
         self.bindings = bindings
         stateLock.unlock()
@@ -109,6 +119,7 @@ final class MouseEventMonitor: @unchecked Sendable {
     }
 
     func setLearningMode(_ enabled: Bool) {
+        if enabled { wheelShortcuts.cancel() }
         stateLock.lock()
         learningMode = enabled
         stateLock.unlock()
@@ -247,15 +258,21 @@ final class MouseEventMonitor: @unchecked Sendable {
         guard !learning, let shortcut, canPostShortcut else {
             return Unmanaged.passUnretained(event)
         }
-        shortcutQueue.async { [weak self] in
-            let didPost = shortcut.post()
-            self?.reportStatus(
-                didPost
-                    ? "已提交快捷键：\(shortcut.displayName)"
-                    : "快捷键未发送；请检查 Mouse Kit 的按键合成权限"
-            )
+        if input.id.hasPrefix("scroll.") {
+            wheelShortcuts.submit(inputID: input.id, shortcut: shortcut)
+        } else {
+            shortcutQueue.async { [weak self] in self?.postShortcut(shortcut) }
         }
         return nil
+    }
+
+    private func postShortcut(_ shortcut: ShortcutBinding) {
+        let didPost = shortcut.post()
+        reportStatus(
+            didPost
+                ? "已提交快捷键：\(shortcut.displayName)"
+                : "快捷键未发送；请检查 Mouse Kit 的按键合成权限"
+        )
     }
 
     private func handleShortcutKeyDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {
