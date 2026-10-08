@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import XCTest
-@testable import MouseEventProbe
+@testable import MouseTap
 
 final class ScrollSettingsTests: XCTestCase {
     private let vertical: [CGEventField] = [
@@ -72,7 +72,7 @@ final class ScrollSettingsTests: XCTestCase {
     }
 
     func testDefaultsAndPersistence() {
-        let suite = "MouseKit.ScrollTests.\(UUID().uuidString)"
+        let suite = "MouseTap.ScrollTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         XCTAssertEqual(ScrollSettings.load(from: defaults), ScrollSettings())

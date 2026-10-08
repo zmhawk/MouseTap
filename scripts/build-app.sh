@@ -2,21 +2,23 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_BUNDLE="$PROJECT_ROOT/dist/Mouse Kit.app"
-APP_BUNDLE_ID="com.yujianbo.mousekit"
-APP_EXECUTABLE="MouseKit"
+APP_BUNDLE="$PROJECT_ROOT/dist/MouseTap.app"
+APP_BUNDLE_ID="com.zmhawk.mousetap"
+APP_EXECUTABLE="MouseTap"
 
 swift build \
   --package-path "$PROJECT_ROOT" \
   --configuration release \
-  --product mouse-event-probe
+  --product MouseTap
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 "$PROJECT_ROOT/scripts/build-icon.sh"
-cp "$PROJECT_ROOT/Assets/MouseKit.icns" "$APP_BUNDLE/Contents/Resources/MouseKit.icns"
+cp "$PROJECT_ROOT/Assets/MouseTap.icns" "$APP_BUNDLE/Contents/Resources/MouseTap.icns"
+cp "$PROJECT_ROOT/THIRD_PARTY_NOTICES.txt" "$APP_BUNDLE/Contents/Resources/THIRD_PARTY_NOTICES.txt"
+cp "$PROJECT_ROOT/LICENSE" "$APP_BUNDLE/Contents/Resources/LICENSE"
 
-cp "$PROJECT_ROOT/.build/release/mouse-event-probe" \
+cp "$PROJECT_ROOT/.build/release/MouseTap" \
   "$APP_BUNDLE/Contents/MacOS/$APP_EXECUTABLE"
 
 cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
@@ -31,11 +33,11 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
     <key>CFBundleIdentifier</key>
     <string>$APP_BUNDLE_ID</string>
     <key>CFBundleIconFile</key>
-    <string>MouseKit</string>
+    <string>MouseTap</string>
     <key>CFBundleName</key>
-    <string>Mouse Kit</string>
+    <string>MouseTap</string>
     <key>CFBundleDisplayName</key>
-    <string>Mouse Kit</string>
+    <string>MouseTap</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

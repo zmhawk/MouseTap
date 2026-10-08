@@ -1,0 +1,59 @@
+name: Test and build MouseTap
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    env:
+      CODESIGN_IDENTITY: '-'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Check toolchain and architecture
+        run: |
+          swift --version
+          test "$(uname -m)" = '${{ matrix.arch }}'
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build signed app
+        run: ./scripts/build-app.sh
+
+      - name: Package app
+        run: |
+          codesign --verify --deep --strict dist/MouseTap.app
+          ditto -c -k --sequesterRsrc --keepParent dist/MouseTap.app dist/MouseTap-${{ matrix.arch }}.zip
+
+      - name: Upload app
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: MouseTap-${{ matrix.arch }}
+          path: dist/MouseTap-${{ matrix.arch }}.zip
+          if-no-files-found: error
+          retention-days: 14

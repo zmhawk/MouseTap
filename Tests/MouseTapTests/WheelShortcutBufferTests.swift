@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import MouseEventProbe
+@testable import MouseTap
 
 final class WheelShortcutBufferTests: XCTestCase {
     private func request(_ input: String = "scroll.right", at time: TimeInterval) throws -> WheelShortcutRequest {
@@ -56,7 +56,7 @@ final class WheelShortcutBufferTests: XCTestCase {
         XCTAssertNil(buffer.pending)
     }
     func testSchedulerCoalescesBurstBeforeWorkerStarts() throws {
-        let queue = DispatchQueue(label: "MouseKit.Tests.Burst")
+        let queue = DispatchQueue(label: "MouseTap.Tests.Burst")
         let sent = expectation(description: "One send")
         sent.assertForOverFulfill = true
         let scheduler = WheelShortcutScheduler(queue: queue) { request in
@@ -74,7 +74,7 @@ final class WheelShortcutBufferTests: XCTestCase {
     }
 
     func testSchedulerCancellationAllowsFreshInput() throws {
-        let queue = DispatchQueue(label: "MouseKit.Tests.Cancel")
+        let queue = DispatchQueue(label: "MouseTap.Tests.Cancel")
         let sent = expectation(description: "Only fresh input")
         sent.assertForOverFulfill = true
         let scheduler = WheelShortcutScheduler(queue: queue) { request in

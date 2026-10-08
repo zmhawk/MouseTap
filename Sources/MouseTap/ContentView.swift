@@ -1,10 +1,12 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     private let monitor = MouseEventMonitor.shared
     @State private var bindings = BindingStore.load()
     @State private var scrollSettings = ScrollSettings.load()
     @ObservedObject private var launchAtLogin = LaunchAtLogin.shared
+    @State private var configurationMessage: String?
     @State private var status = "正在启动监听器…"
     @State private var latestInput: String?
     @State private var isAddingBinding = false
@@ -75,6 +77,16 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
 
+            HStack {
+                Button("导出配置…", action: exportConfiguration)
+                Button("加载配置…", action: importConfiguration)
+                    .disabled(isAddingBinding)
+                Spacer()
+            }
+            Text("TOML 文件可手动编辑；加载后将替换当前绑定与滚轮方向。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             Spacer(minLength: 0)
 
             Divider()
@@ -113,13 +125,21 @@ struct ContentView: View {
             .font(.caption)
         }
         .padding(22)
+        .alert("配置文件", isPresented: Binding(
+            get: { configurationMessage != nil },
+            set: { if !$0 { configurationMessage = nil } }
+        )) {
+            Button("好", role: .cancel) { configurationMessage = nil }
+        } message: {
+            Text(configurationMessage ?? "")
+        }
         .onAppear(perform: startMonitor)
         .onChange(of: scrollSettings) { settings in
             settings.save()
             monitor.setScrollSettings(settings)
         }
         .onDisappear(perform: detachViewCallbacks)
-        .onReceive(NotificationCenter.default.publisher(for: .mouseKitWindowHidden)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .mouseTapWindowHidden)) { _ in
             cancelAddingBinding()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -135,7 +155,7 @@ struct ContentView: View {
                 .frame(width: 44, height: 44)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Mouse Kit")
+                Text("MouseTap")
                     .font(.title2.weight(.semibold))
                 Text(status)
                     .font(.subheadline)
@@ -290,6 +310,59 @@ struct ContentView: View {
         bindings.removeValue(forKey: inputID)
         persistBindings()
         monitor.setBindings(bindings)
+    }
+
+    private func exportConfiguration() {
+        let panel = NSSavePanel()
+        panel.title = "导出 MouseTap 配置"
+        panel.allowedContentTypes = [UTType(filenameExtension: "toml") ?? .plainText]
+        panel.nameFieldStringValue = "mousetap.toml"
+        panel.canCreateDirectories = true
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            let configuration = ConfigurationFile(bindings: bindings, scroll: scrollSettings)
+            Task { @MainActor in
+                do {
+                    try await Task.detached(priority: .userInitiated) {
+                        try configuration.write(to: url)
+                    }.value
+                    configurationMessage = "已导出配置到 \(url.lastPathComponent)。"
+                } catch {
+                    configurationMessage = "导出失败：\(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func importConfiguration() {
+        let panel = NSOpenPanel()
+        panel.title = "加载 MouseTap 配置"
+        panel.message = "校验成功后，文件中的绑定与滚轮方向将替换当前配置。"
+        panel.allowedContentTypes = [UTType(filenameExtension: "toml") ?? .plainText]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { @MainActor in
+                do {
+                    // File I/O runs off the event-tap thread. Validate before applying.
+                    let configuration = try await Task.detached(priority: .userInitiated) {
+                        try ConfigurationFile.read(from: url)
+                    }.value
+                    cancelAddingBinding()
+                    bindings = configuration.bindings
+                    scrollSettings = configuration.scroll
+                    BindingStore.save(configuration.bindings)
+                    configuration.scroll.save()
+                    monitor.setBindings(configuration.bindings)
+                    monitor.setScrollSettings(configuration.scroll)
+                    monitor.start()
+                    configurationMessage = "已加载 \(url.lastPathComponent)，配置立即生效。"
+                } catch {
+                    configurationMessage = "加载失败，原配置保留：\(error.localizedDescription)"
+                }
+            }
+        }
     }
 
     private func persistBindings() {

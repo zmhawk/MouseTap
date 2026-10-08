@@ -1,0 +1,42 @@
+# MouseTap configuration. Edit, then load this file in the app.
+version = 1
+
+[scroll]
+reverseVertical = false
+reverseHorizontal = false
+
+[bindings."button.2"]
+keyCode = 126
+keyName = "↑"
+control = true
+command = false
+option = false
+shift = false
+function = false
+
+[bindings."button.3"]
+keyCode = 0
+keyName = "A"
+control = false
+command = false
+option = false
+shift = true
+function = true
+
+[bindings."scroll.left"]
+keyCode = 123
+keyName = "←"
+control = true
+command = false
+option = false
+shift = false
+function = false
+
+[bindings."scroll.right"]
+keyCode = 124
+keyName = "→"
+control = true
+command = false
+option = false
+shift = false
+function = false

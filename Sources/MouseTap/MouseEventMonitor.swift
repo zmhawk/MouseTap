@@ -8,7 +8,7 @@ final class MouseEventMonitor: @unchecked Sendable {
     var onInputDetected: ((MouseInput) -> Void)?
     var onStatusChanged: ((String) -> Void)?
 
-    private let shortcutQueue = DispatchQueue(label: "com.yujianbo.mousekit.shortcuts", qos: .userInteractive)
+    private let shortcutQueue = DispatchQueue(label: "com.zmhawk.mousetap.shortcuts", qos: .userInteractive)
     private lazy var wheelShortcuts = WheelShortcutScheduler(queue: shortcutQueue) { [weak self] request in
         guard let self else { return }
         self.stateLock.lock()
@@ -31,7 +31,7 @@ final class MouseEventMonitor: @unchecked Sendable {
     func start() {
         guard tap == nil else {
             if !postEventAccessIsReadyForBindings() {
-                reportStatus("正在监听；请允许 Mouse Kit 合成键盘事件，绑定才能触发")
+                reportStatus("正在监听；请允许 MouseTap 合成键盘事件，绑定才能触发")
             } else {
                 reportStatus("正在监听鼠标中键、额外按键和横向拨轮")
             }
@@ -40,7 +40,7 @@ final class MouseEventMonitor: @unchecked Sendable {
 
         guard CGPreflightListenEventAccess() else {
             _ = CGRequestListenEventAccess()
-            reportStatus("请在系统设置的“输入监控”中允许 Mouse Kit，然后重新打开窗口")
+            reportStatus("请在系统设置的“输入监控”中允许 MouseTap，然后重新打开窗口")
             return
         }
 
@@ -78,7 +78,7 @@ final class MouseEventMonitor: @unchecked Sendable {
         reportStatus(
             canSynthesizeForBindings
                 ? "正在监听鼠标中键、额外按键和横向拨轮"
-                : "正在监听；请允许 Mouse Kit 合成键盘事件，绑定才能触发"
+                : "正在监听；请允许 MouseTap 合成键盘事件，绑定才能触发"
         )
     }
 
@@ -128,14 +128,14 @@ final class MouseEventMonitor: @unchecked Sendable {
     func beginShortcutCapture(_ completion: @escaping (ShortcutBinding?) -> Void) {
         guard CGPreflightListenEventAccess() else {
             _ = CGRequestListenEventAccess()
-            reportStatus("请在系统设置的“输入监控”中允许 Mouse Kit，然后再次录制快捷键")
+            reportStatus("请在系统设置的“输入监控”中允许 MouseTap，然后再次录制快捷键")
             completion(nil)
             return
         }
 
         guard CGPreflightPostEventAccess() else {
             _ = CGRequestPostEventAccess()
-            reportStatus("请在系统设置中允许 Mouse Kit 合成键盘事件，然后再次录制快捷键")
+            reportStatus("请在系统设置中允许 MouseTap 合成键盘事件，然后再次录制快捷键")
             completion(nil)
             return
         }
@@ -271,7 +271,7 @@ final class MouseEventMonitor: @unchecked Sendable {
         reportStatus(
             didPost
                 ? "已提交快捷键：\(shortcut.displayName)"
-                : "快捷键未发送；请检查 Mouse Kit 的按键合成权限"
+                : "快捷键未发送；请检查 MouseTap 的按键合成权限"
         )
     }
 
@@ -325,7 +325,7 @@ final class MouseEventMonitor: @unchecked Sendable {
     private func requestPostEventAccess() {
         guard !CGPreflightPostEventAccess() else { return }
         _ = CGRequestPostEventAccess()
-        reportStatus("正在监听；请允许 Mouse Kit 合成键盘事件，绑定才能触发")
+        reportStatus("正在监听；请允许 MouseTap 合成键盘事件，绑定才能触发")
     }
 }
 

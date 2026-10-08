@@ -4,10 +4,10 @@ import SwiftUI
 
 @main
 @MainActor
-struct MouseKitApp {
+struct MouseTapApp {
     static func main() {
         let application = NSApplication.shared
-        let delegate = MouseKitAppDelegate()
+        let delegate = MouseTapAppDelegate()
         application.delegate = delegate
         withExtendedLifetime(delegate) {
             application.run()
@@ -16,14 +16,15 @@ struct MouseKitApp {
 }
 
 extension Notification.Name {
-    static let mouseKitWindowHidden = Notification.Name("MouseKitWindowHidden")
+    static let mouseTapWindowHidden = Notification.Name("MouseTapWindowHidden")
 }
 
 @MainActor
-final class MouseKitAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class MouseTapAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var mainWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        PreferencesMigration.run()
         NSApp.setActivationPolicy(.accessory)
         // Listening belongs to the application, even when no window exists.
         MouseEventMonitor.shared.setBindings(BindingStore.load())
@@ -49,7 +50,7 @@ final class MouseKitAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        NotificationCenter.default.post(name: .mouseKitWindowHidden, object: sender)
+        NotificationCenter.default.post(name: .mouseTapWindowHidden, object: sender)
         sender.orderOut(nil)
         return false
     }
@@ -61,18 +62,18 @@ final class MouseKitAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
     private func showMainWindow() {
         if mainWindow == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 640, height: 580),
+                contentRect: NSRect(x: 0, y: 0, width: 640, height: 660),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
                 backing: .buffered,
                 defer: false
             )
-            window.title = "Mouse Kit"
+            window.title = "MouseTap"
             window.contentView = NSHostingView(rootView: ContentView())
-            window.minSize = NSSize(width: 600, height: 580)
+            window.minSize = NSSize(width: 600, height: 660)
             window.isReleasedWhenClosed = false
             window.delegate = self
             window.center()
-            window.setFrameAutosaveName("MouseKitSettings")
+            window.setFrameAutosaveName("MouseTapSettings")
             mainWindow = window
         }
         guard let mainWindow else { return }

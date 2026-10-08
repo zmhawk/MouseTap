@@ -1,20 +1,20 @@
 import CoreGraphics
 import Foundation
 
-struct ScrollSettings: Equatable, Sendable {
+struct ScrollSettings: Codable, Equatable, Sendable {
     var reverseVertical = false
     var reverseHorizontal = false
 
     static func load(from defaults: UserDefaults = .standard) -> ScrollSettings {
         ScrollSettings(
-            reverseVertical: defaults.bool(forKey: "mouse-kit.scroll.reverse-vertical"),
-            reverseHorizontal: defaults.bool(forKey: "mouse-kit.scroll.reverse-horizontal")
+            reverseVertical: defaults.bool(forKey: "mousetap.scroll.reverse-vertical"),
+            reverseHorizontal: defaults.bool(forKey: "mousetap.scroll.reverse-horizontal")
         )
     }
 
     func save(to defaults: UserDefaults = .standard) {
-        defaults.set(reverseVertical, forKey: "mouse-kit.scroll.reverse-vertical")
-        defaults.set(reverseHorizontal, forKey: "mouse-kit.scroll.reverse-horizontal")
+        defaults.set(reverseVertical, forKey: "mousetap.scroll.reverse-vertical")
+        defaults.set(reverseHorizontal, forKey: "mousetap.scroll.reverse-horizontal")
     }
 
     static func isMouseWheelEvent(_ event: CGEvent) -> Bool {

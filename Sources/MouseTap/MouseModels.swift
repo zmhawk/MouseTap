@@ -29,7 +29,7 @@ struct MouseInput: Codable, Hashable, Identifiable, Sendable {
 }
 
 struct ShortcutBinding: Codable, Hashable, Sendable {
-    static let generatedEventUserData: Int64 = 0x4D4F5553454B4954
+    static let generatedEventUserData: Int64 = 0x4D4F555345544150
 
     let keyCode: UInt16
     let command: Bool
@@ -186,7 +186,7 @@ struct ShortcutBinding: Codable, Hashable, Sendable {
 
 
 enum BindingStore {
-    private static let key = "mouse-kit.bindings.v1"
+    private static let key = "mousetap.bindings.v1"
 
     static func load() -> [String: ShortcutBinding] {
         guard let data = UserDefaults.standard.data(forKey: key) else { return [:] }
