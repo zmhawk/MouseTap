@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     private let monitor = MouseEventMonitor.shared
     @State private var bindings = BindingStore.load()
+    @State private var scrollSettings = ScrollSettings.load()
     @ObservedObject private var launchAtLogin = LaunchAtLogin.shared
     @State private var status = "正在启动监听器…"
     @State private var latestInput: String?
@@ -62,6 +63,18 @@ struct ContentView: View {
                 }
             }
 
+            VStack(alignment: .leading, spacing: 10) {
+                Text("滚轮方向").font(.headline)
+                HStack(spacing: 24) {
+                    Toggle("反转上下滚动", isOn: $scrollSettings.reverseVertical)
+                    Toggle("反转左右滚动", isOn: $scrollSettings.reverseHorizontal)
+                }
+                .toggleStyle(.checkbox)
+                Text("相对于系统方向反转；横向拨轮的快捷键绑定保持不变。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Spacer(minLength: 0)
 
             Divider()
@@ -101,6 +114,10 @@ struct ContentView: View {
         }
         .padding(22)
         .onAppear(perform: startMonitor)
+        .onChange(of: scrollSettings) { settings in
+            settings.save()
+            monitor.setScrollSettings(settings)
+        }
         .onDisappear(perform: detachViewCallbacks)
         .onReceive(NotificationCenter.default.publisher(for: .mouseKitWindowHidden)) { _ in
             cancelAddingBinding()
@@ -220,6 +237,7 @@ struct ContentView: View {
         }
         monitor.onStatusChanged = { status = $0 }
         monitor.setBindings(bindings)
+        monitor.setScrollSettings(scrollSettings)
         monitor.start()
     }
 

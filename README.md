@@ -24,3 +24,7 @@ Mouse Kit runs without a Dock icon. Closing its window keeps saved bindings acti
 Enable **开机自启** to register with macOS Login Items. Login launches run silently without a settings window. If macOS requires approval, use the settings link shown in the app. Keep the app bundle at its registered path, or disable and re-enable login startup after moving it.
 
 The build script packages the icon from `Assets/MouseKit.png`. `--background` starts without a window, and `--enable-login` enables login startup when launching the app.
+
+## Scroll direction
+
+**反转上下滚动** and **反转左右滚动** reverse each wheel axis relative to the macOS setting. Changes apply immediately and persist across background launches. Existing horizontal-wheel shortcut bindings take priority and retain their original mapping. Phased trackpad gestures and momentum pass through unchanged.

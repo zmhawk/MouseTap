@@ -11,6 +11,7 @@ final class MouseEventMonitor: @unchecked Sendable {
     private let shortcutQueue = DispatchQueue(label: "com.yujianbo.mousekit.shortcuts", qos: .userInteractive)
     private let stateLock = NSLock()
     private var bindings: [String: ShortcutBinding] = [:]
+    private var scrollSettings = ScrollSettings.load()
     private var learningMode = false
     private var swallowedButtons = Set<String>()
     private var shortcutCaptureActive = false
@@ -98,6 +99,12 @@ final class MouseEventMonitor: @unchecked Sendable {
     func setBindings(_ bindings: [String: ShortcutBinding]) {
         stateLock.lock()
         self.bindings = bindings
+        stateLock.unlock()
+    }
+
+    func setScrollSettings(_ settings: ScrollSettings) {
+        stateLock.lock()
+        scrollSettings = settings
         stateLock.unlock()
     }
 
@@ -192,13 +199,23 @@ final class MouseEventMonitor: @unchecked Sendable {
         }
 
         if type == .scrollWheel {
+            guard ScrollSettings.isMouseWheelEvent(event) else {
+                return Unmanaged.passUnretained(event)
+            }
             let lineDelta = event.getIntegerValueField(.scrollWheelEventDeltaAxis2)
             let pixelDelta = event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2)
             let delta = lineDelta != 0 ? lineDelta : pixelDelta
-            guard let input = MouseInput.horizontalScroll(delta) else {
-                return Unmanaged.passUnretained(event)
+            // Resolve physical input bindings before reversing ordinary scroll.
+            // A bound wheel keeps its shortcut and never leaks a scroll event.
+            if let input = MouseInput.horizontalScroll(delta),
+               handleActivation(input, event: event) == nil {
+                return nil
             }
-            return handleActivation(input, event: event)
+            stateLock.lock()
+            let settings = scrollSettings
+            stateLock.unlock()
+            settings.apply(to: event)
+            return Unmanaged.passUnretained(event)
         }
 
         return Unmanaged.passUnretained(event)

@@ -8,6 +8,7 @@ let package = Package(
         .executable(name: "mouse-event-probe", targets: ["MouseEventProbe"])
     ],
     targets: [
-        .executableTarget(name: "MouseEventProbe")
+        .executableTarget(name: "MouseEventProbe"),
+        .testTarget(name: "MouseEventProbeTests", dependencies: ["MouseEventProbe"])
     ]
 )

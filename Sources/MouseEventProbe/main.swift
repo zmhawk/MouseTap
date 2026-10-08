@@ -61,14 +61,14 @@ final class MouseKitAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
     private func showMainWindow() {
         if mainWindow == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
+                contentRect: NSRect(x: 0, y: 0, width: 640, height: 580),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
                 backing: .buffered,
                 defer: false
             )
             window.title = "Mouse Kit"
             window.contentView = NSHostingView(rootView: ContentView())
-            window.minSize = NSSize(width: 600, height: 480)
+            window.minSize = NSSize(width: 600, height: 580)
             window.isReleasedWhenClosed = false
             window.delegate = self
             window.center()
