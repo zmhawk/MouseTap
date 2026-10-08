@@ -8,6 +8,7 @@ final class MouseEventMonitor: @unchecked Sendable {
     var onInputDetected: ((MouseInput) -> Void)?
     var onStatusChanged: ((String) -> Void)?
 
+    private let shortcutQueue = DispatchQueue(label: "com.yujianbo.mousekit.shortcuts", qos: .userInteractive)
     private let stateLock = NSLock()
     private var bindings: [String: ShortcutBinding] = [:]
     private var learningMode = false
@@ -20,12 +21,24 @@ final class MouseEventMonitor: @unchecked Sendable {
 
     func start() {
         guard tap == nil else {
-            reportStatus("正在监听鼠标中键、额外按键和横向拨轮")
+            if !postEventAccessIsReadyForBindings() {
+                reportStatus("正在监听；请允许 Mouse Kit 合成键盘事件，绑定才能触发")
+            } else {
+                reportStatus("正在监听鼠标中键、额外按键和横向拨轮")
+            }
             return
         }
 
+        guard CGPreflightListenEventAccess() else {
+            _ = CGRequestListenEventAccess()
+            reportStatus("请在系统设置的“输入监控”中允许 Mouse Kit，然后重新打开窗口")
+            return
+        }
+
+        let canSynthesizeForBindings = postEventAccessIsReadyForBindings()
+
         let eventTypes: [CGEventType] = [
-            .otherMouseDown, .otherMouseUp, .scrollWheel, .keyDown, .keyUp,
+            .otherMouseDown, .otherMouseUp, .scrollWheel, .keyDown, .keyUp, .flagsChanged,
         ]
         let eventMask = eventTypes.reduce(CGEventMask(0)) { mask, type in
             mask | (CGEventMask(1) << type.rawValue)
@@ -53,7 +66,11 @@ final class MouseEventMonitor: @unchecked Sendable {
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: eventTap, enable: true)
-        reportStatus("正在监听鼠标中键、额外按键和横向拨轮")
+        reportStatus(
+            canSynthesizeForBindings
+                ? "正在监听鼠标中键、额外按键和横向拨轮"
+                : "正在监听；请允许 Mouse Kit 合成键盘事件，绑定才能触发"
+        )
     }
 
     func stop() {
@@ -93,7 +110,14 @@ final class MouseEventMonitor: @unchecked Sendable {
     func beginShortcutCapture(_ completion: @escaping (ShortcutBinding?) -> Void) {
         guard CGPreflightListenEventAccess() else {
             _ = CGRequestListenEventAccess()
-            reportStatus("请允许输入监控权限，然后再次点击录制快捷键")
+            reportStatus("请在系统设置的“输入监控”中允许 Mouse Kit，然后再次录制快捷键")
+            completion(nil)
+            return
+        }
+
+        guard CGPreflightPostEventAccess() else {
+            _ = CGRequestPostEventAccess()
+            reportStatus("请在系统设置中允许 Mouse Kit 合成键盘事件，然后再次录制快捷键")
             completion(nil)
             return
         }
@@ -126,6 +150,13 @@ final class MouseEventMonitor: @unchecked Sendable {
             return Unmanaged.passUnretained(event)
         }
 
+        // Synthetic events must pass through even if recording starts while
+        // a queued shortcut is finishing. Seeing them here only confirms delivery
+        // to this tap, not that the foreground app performed an action.
+        if event.getIntegerValueField(.eventSourceUserData) == ShortcutBinding.generatedEventUserData {
+            return Unmanaged.passUnretained(event)
+        }
+
         if type == .keyUp {
             let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
             stateLock.lock()
@@ -136,6 +167,10 @@ final class MouseEventMonitor: @unchecked Sendable {
 
         if type == .keyDown {
             return handleShortcutKeyDown(event)
+        }
+
+        if type == .flagsChanged {
+            return Unmanaged.passUnretained(event)
         }
 
         if type == .otherMouseUp {
@@ -173,18 +208,35 @@ final class MouseEventMonitor: @unchecked Sendable {
         stateLock.lock()
         let learning = learningMode || shortcutCaptureActive
         let shortcut = bindings[input.id]
-        if !learning, shortcut != nil, input.id.hasPrefix("button.") {
-            swallowedButtons.insert(input.id)
-        }
         stateLock.unlock()
+
+        let canPostShortcut = learning || shortcut == nil || CGPreflightPostEventAccess()
+        if !learning, shortcut != nil, !canPostShortcut {
+            DispatchQueue.main.async { [weak self] in
+                self?.requestPostEventAccess()
+            }
+        }
+
+        if !learning, shortcut != nil, canPostShortcut, input.id.hasPrefix("button.") {
+            stateLock.lock()
+            swallowedButtons.insert(input.id)
+            stateLock.unlock()
+        }
 
         DispatchQueue.main.async { [weak self] in
             self?.onInputDetected?(input)
         }
 
-        guard !learning, let shortcut else { return Unmanaged.passUnretained(event) }
-        DispatchQueue.main.async {
-            shortcut.post()
+        guard !learning, let shortcut, canPostShortcut else {
+            return Unmanaged.passUnretained(event)
+        }
+        shortcutQueue.async { [weak self] in
+            let didPost = shortcut.post()
+            self?.reportStatus(
+                didPost
+                    ? "已提交快捷键：\(shortcut.displayName)"
+                    : "快捷键未发送；请检查 Mouse Kit 的按键合成权限"
+            )
         }
         return nil
     }
@@ -221,6 +273,25 @@ final class MouseEventMonitor: @unchecked Sendable {
         DispatchQueue.main.async { [weak self] in
             self?.onStatusChanged?(message)
         }
+    }
+
+    private func postEventAccessIsReadyForBindings() -> Bool {
+        stateLock.lock()
+        let hasBindings = !bindings.isEmpty
+        stateLock.unlock()
+
+        guard hasBindings else { return true }
+        guard CGPreflightPostEventAccess() else {
+            _ = CGRequestPostEventAccess()
+            return false
+        }
+        return true
+    }
+
+    private func requestPostEventAccess() {
+        guard !CGPreflightPostEventAccess() else { return }
+        _ = CGRequestPostEventAccess()
+        reportStatus("正在监听；请允许 Mouse Kit 合成键盘事件，绑定才能触发")
     }
 }
 

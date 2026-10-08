@@ -1,10 +1,9 @@
 import SwiftUI
 
 struct ContentView: View {
-    private static let bindingsKey = "mouse-kit.bindings.v1"
-
     private let monitor = MouseEventMonitor.shared
-    @State private var bindings = Self.loadBindings()
+    @State private var bindings = BindingStore.load()
+    @ObservedObject private var launchAtLogin = LaunchAtLogin.shared
     @State private var status = "正在启动监听器…"
     @State private var latestInput: String?
     @State private var isAddingBinding = false
@@ -65,6 +64,30 @@ struct ContentView: View {
 
             Spacer(minLength: 0)
 
+            Divider()
+            HStack {
+                Toggle("开机自启", isOn: Binding(
+                    get: { launchAtLogin.enabled },
+                    set: { launchAtLogin.setEnabled($0) }
+                ))
+                .toggleStyle(.checkbox)
+                Spacer()
+                Button("退出 Mouse Kit") { NSApp.terminate(nil) }
+            }
+            Text("关闭窗口后继续在后台运行；再次打开 App 可显示此窗口。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if launchAtLogin.requiresApproval {
+                HStack {
+                    Text("请在系统设置中允许开机自启。")
+                    Button("打开登录项设置") { launchAtLogin.openSettings() }
+                }
+                .font(.caption)
+            }
+            if let error = launchAtLogin.errorMessage {
+                Text(error).font(.caption).foregroundStyle(.orange)
+            }
+
             HStack(spacing: 6) {
                 Image(systemName: "waveform.path")
                     .foregroundStyle(.secondary)
@@ -79,15 +102,20 @@ struct ContentView: View {
         .padding(22)
         .onAppear(perform: startMonitor)
         .onDisappear(perform: detachViewCallbacks)
+        .onReceive(NotificationCenter.default.publisher(for: .mouseKitWindowHidden)) { _ in
+            cancelAddingBinding()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            launchAtLogin.refresh()
+        }
     }
 
     private var header: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "computermouse.fill")
-                .font(.system(size: 25))
-                .foregroundStyle(.tint)
-                .frame(width: 40, height: 40)
-                .background(.tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 44, height: 44)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Mouse Kit")
@@ -212,6 +240,7 @@ struct ContentView: View {
         pendingInput = nil
         isLearningInput = true
         monitor.setLearningMode(true)
+        monitor.start()
     }
 
     private func beginShortcutCapture() {
@@ -246,12 +275,7 @@ struct ContentView: View {
     }
 
     private func persistBindings() {
-        guard let data = try? JSONEncoder().encode(bindings) else { return }
-        UserDefaults.standard.set(data, forKey: Self.bindingsKey)
+        BindingStore.save(bindings)
     }
 
-    private static func loadBindings() -> [String: ShortcutBinding] {
-        guard let data = UserDefaults.standard.data(forKey: bindingsKey) else { return [:] }
-        return (try? JSONDecoder().decode([String: ShortcutBinding].self, from: data)) ?? [:]
-    }
 }
