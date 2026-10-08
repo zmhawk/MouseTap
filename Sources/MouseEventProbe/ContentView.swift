@@ -85,7 +85,7 @@ struct ContentView: View {
                 ))
                 .toggleStyle(.checkbox)
                 Spacer()
-                Button("退出 Mouse Kit") { NSApp.terminate(nil) }
+                Button("退出并关闭鼠标服务") { NSApp.terminate(nil) }
             }
             Text("关闭窗口后继续在后台运行；再次打开 App 可显示此窗口。")
                 .font(.caption)

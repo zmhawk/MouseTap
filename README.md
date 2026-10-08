@@ -4,6 +4,20 @@ A minimal macOS mouse-button remapper. Add a binding by pressing a middle/extra 
 
 Only inputs with a saved binding are intercepted. Unbound inputs pass through, and left/right clicks remain unchanged.
 
+## 中文说明
+
+忍了那个巨大无比的 Logic Option+ 九年，终于决定让 AI 给我写一个轻量版鼠标“驱动“（我也不知道这玩意该叫啥）。
+
+解决了 Logic Option+ 在其他应用抢走输入焦点后概率性无法触发切屏动作的问题。
+
+解决了 Logic Option+ 不支持苹果 Universal Control 的问题。
+
+是的！这玩意支持 Universal Control！我可以在鼠标连 air 的时候顺利的在 mini 上使用我的自定义动作，只需要两台电脑都安装并使用相同的配置。
+
+### 待优化的交互
+
+左上角的 x 是关闭窗口，但不关闭服务。但是首次授权后需要重新启动 app 才能生效，要点“退出并关闭鼠标服务“彻底关闭后再打开。
+
 ## Build and run
 
 ```sh
@@ -19,7 +33,7 @@ Bindings are saved in the current user's preferences.
 
 ## Background operation
 
-Mouse Kit runs without a Dock icon. Closing its window keeps saved bindings active; opening the app again brings back the same settings window. Use **退出 Mouse Kit** to stop it.
+Mouse Kit runs without a Dock icon. Closing its window keeps saved bindings active; opening the app again brings back the same settings window. Use **退出并关闭鼠标服务** to stop it.
 
 Enable **开机自启** to register with macOS Login Items. Login launches run silently without a settings window. If macOS requires approval, use the settings link shown in the app. Keep the app bundle at its registered path, or disable and re-enable login startup after moving it.
 
