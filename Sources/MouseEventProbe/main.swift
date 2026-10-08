@@ -1,7 +1,12 @@
+import AppKit
 import SwiftUI
 
 @main
 struct MouseKitApp: App {
+    init() {
+        NSApplication.shared.setActivationPolicy(.regular)
+    }
+
     var body: some Scene {
         WindowGroup("Mouse Kit") {
             ContentView()

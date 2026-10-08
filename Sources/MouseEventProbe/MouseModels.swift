@@ -67,8 +67,10 @@ struct ShortcutBinding: Codable, Hashable, Sendable {
 
         keyDown.flags = flags
         keyUp.flags = flags
-        keyDown.post(tap: .cgSessionEventTap)
-        keyUp.post(tap: .cgSessionEventTap)
+        // Inject at the HID entry point so WindowServer and system-wide
+        // shortcut handlers see the chord before it is routed to an app.
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
     }
 
     private static func name(for event: NSEvent) -> String {

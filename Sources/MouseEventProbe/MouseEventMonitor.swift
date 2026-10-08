@@ -3,6 +3,8 @@ import CoreGraphics
 import Foundation
 
 final class MouseEventMonitor: @unchecked Sendable {
+    static let shared = MouseEventMonitor()
+
     var onInputDetected: ((MouseInput) -> Void)?
     var onStatusChanged: ((String) -> Void)?
 
@@ -17,7 +19,10 @@ final class MouseEventMonitor: @unchecked Sendable {
     private var runLoopSource: CFRunLoopSource?
 
     func start() {
-        guard tap == nil else { return }
+        guard tap == nil else {
+            reportStatus("正在监听鼠标中键、额外按键和横向拨轮")
+            return
+        }
 
         let eventTypes: [CGEventType] = [
             .otherMouseDown, .otherMouseUp, .scrollWheel, .keyDown, .keyUp,

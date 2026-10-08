@@ -3,7 +3,7 @@ import SwiftUI
 struct ContentView: View {
     private static let bindingsKey = "mouse-kit.bindings.v1"
 
-    @State private var monitor = MouseEventMonitor()
+    private let monitor = MouseEventMonitor.shared
     @State private var bindings = Self.loadBindings()
     @State private var status = "正在启动监听器…"
     @State private var latestInput: String?
@@ -78,7 +78,7 @@ struct ContentView: View {
         }
         .padding(22)
         .onAppear(perform: startMonitor)
-        .onDisappear(perform: monitor.stop)
+        .onDisappear(perform: detachViewCallbacks)
     }
 
     private var header: some View {
@@ -193,6 +193,13 @@ struct ContentView: View {
         monitor.onStatusChanged = { status = $0 }
         monitor.setBindings(bindings)
         monitor.start()
+    }
+
+    private func detachViewCallbacks() {
+        monitor.setLearningMode(false)
+        monitor.cancelShortcutCapture()
+        monitor.onInputDetected = nil
+        monitor.onStatusChanged = nil
     }
 
     private func beginAddingBinding() {
