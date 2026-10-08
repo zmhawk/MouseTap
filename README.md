@@ -6,11 +6,11 @@ Only inputs with a saved binding are intercepted. Unbound inputs pass through, a
 
 ## 中文说明
 
-忍了那个巨大无比的 Logic Option+ 九年，终于决定让 AI 给我写一个轻量版鼠标“驱动“（我也不知道这玩意该叫啥）。
+忍了那个巨大无比的 Logi Options+ 九年，终于决定让 AI 给我写一个轻量版鼠标“驱动“（我也不知道这玩意该叫啥）。
 
-解决了 Logic Option+ 在其他应用抢走输入焦点后概率性无法触发切屏动作的问题。
+解决了 Logi Options+ 在其他应用抢走输入焦点后概率性无法触发切屏动作的问题。
 
-解决了 Logic Option+ 不支持苹果 Universal Control 的问题。
+解决了 Logi Options+ 不支持苹果 Universal Control 的问题。
 
 是的！这玩意支持 Universal Control！我可以在鼠标连 air 的时候顺利的在 mini 上使用我的自定义动作，只需要两台电脑都安装并使用相同的配置。
 
